@@ -1,5 +1,6 @@
 import math
 from dataclasses import asdict, dataclass, field
+from typing import Optional, Dict, Union
 
 import torch
 
@@ -103,7 +104,7 @@ def YumaRust(
     R = (S.view(-1, 1) * W_clipped).sum(dim=0)
 
     # === Incentive ===
-    I = (R / R.sum()).nan_to_num(0)
+    I = (R / R.sum()).nan_to_num(0)  # noqa: E741
 
     # === Trusts ===
     T = (R / P).nan_to_num(0)
@@ -115,7 +116,7 @@ def YumaRust(
     B = B / (B_sum + 1e-6)
     B = torch.nan_to_num(B)
 
-    a = b = torch.tensor(float('nan'))
+    a = b = torch.tensor(float("nan"))
     bond_alpha = config.bond_alpha
     if config.liquid_alpha:
         consensus_high = (
@@ -179,7 +180,8 @@ def Yuma(
     config: YumaConfig = YumaConfig(),
 ) -> dict[str, torch.Tensor | None | float]:
     """
-    Original Yuma function with bonds and EMA calculation.
+    Python Impementation of the Original Yuma function with bonds and EMA calculation.
+    https://github.com/opentensor/subtensor/blob/main/docs/consensus.md#consensus-policy
     """
 
     # === Weight ===
@@ -217,7 +219,7 @@ def Yuma(
     R = (S.view(-1, 1) * W_clipped).sum(dim=0)
 
     # === Incentive ===
-    I = (R / R.sum()).nan_to_num(0)
+    I = (R / R.sum()).nan_to_num(0)  # noqa: E741
 
     # === Trusts ===
     T = (R / P).nan_to_num(0)
@@ -225,10 +227,13 @@ def Yuma(
 
     # === Bonds ===
     W_b = (1 - config.bond_penalty) * W + config.bond_penalty * W_clipped
-    B = S.view(-1, 1) * W_b / (S.view(-1, 1) * W_b).sum(dim=0)
+    # B = S.view(-1, 1) * W_b / (S.view(-1, 1) * W_b).sum(dim=0)
+    B = S.view(-1, 1) * W_b
+    B_sum = B.sum(dim=0)
+    B = B / B_sum
     B = B.nan_to_num(0)
 
-    a = b = torch.tensor(float('nan'))
+    a = b = torch.tensor(float("nan"))
     bond_alpha = config.bond_alpha
     if config.liquid_alpha:
         consensus_high = (
@@ -290,7 +295,8 @@ def Yuma2(
     config: YumaConfig = YumaConfig(),
 ) -> dict[str, torch.Tensor | None | float]:
     """
-    Original Yuma function with bonds and EMA calculation.
+    Yuma2 is designed to solve the problem of weight clipping influencing the current bond values for small stakers (validators).
+    The Bonds from the previous epoch are used to calculate Bonds EMA.
     """
 
     # === Weight ===
@@ -331,7 +337,7 @@ def Yuma2(
     R = (S.view(-1, 1) * W_clipped).sum(dim=0)
 
     # === Incentive ===
-    I = (R / R.sum()).nan_to_num(0)
+    I = (R / R.sum()).nan_to_num(0)  # noqa: E741
 
     # === Trusts ===
     T = (R / P).nan_to_num(0)
@@ -342,7 +348,7 @@ def Yuma2(
     B = S.view(-1, 1) * W_b / (S.view(-1, 1) * W_b).sum(dim=0)
     B = B.nan_to_num(0)
 
-    a = b = torch.tensor(float('nan'))
+    a = b = torch.tensor(float("nan"))
     bond_alpha = config.bond_alpha
     if config.liquid_alpha:
         consensus_high = (
@@ -399,12 +405,32 @@ def Yuma2(
 def Yuma3(
     W: torch.Tensor,
     S: torch.Tensor,
-    B_old: torch.Tensor | None = None,
+    B_old: Optional[torch.Tensor] = None,
     config: YumaConfig = YumaConfig(),
     maxint: int = 2**64 - 1,
-) -> dict[str, torch.Tensor | None | float]:
+) -> Dict[str, Union[torch.Tensor | None, float]]:
     """
-    Original Yuma function with bonds and EMA calculation.
+    Implements the Yuma3 algorithm for managing validator bonds, weights, and incentives
+    in a decentralized system.
+
+    Yuma3 addresses the shortcomings of the Yuma2 algorithm, which does not solve the
+    problem of weight clipping influencing bonds effectively. Yuma2 assumes that the
+    "Big Validator" will allocate weights to the "new best" server in the next epoch
+    after it is discovered by the "Small Validators." However, this leads to a drop in
+    the bonds of the "Small Validators" after the next epoch, highlighting the need for
+    a more robust solution.
+
+    Yuma3 introduces a robust bond accumulation mechanism that allows validators to accrue
+    bonds over time. This mitigates the issues caused by weight clipping influencing bonds
+    and ensures sustained validator engagement by tying bond accrual to stake and weights.
+
+    Key Features:
+    - Validators with higher stakes can accumulate more bonds, directly influencing their dividends.
+    - Bonds are capped by the maximum capacity per validator-server relation, which is proportional
+      to the validator's stake.
+    - Bonds are adjusted per epoch based on the `capacity_alpha` parameter, which limits the bond
+      purchase power.
+    - A decay mechanism ensures that bonds associated with unsupported servers decrease over time.
     """
 
     # === Weight ===
@@ -417,7 +443,7 @@ def Yuma3(
     P = (S.view(-1, 1) * W).sum(dim=0)
 
     # === Consensus ===
-    C = torch.zeros(W.shape[1])
+    C = torch.zeros(W.shape[1], dtype=torch.float64)
 
     for i, miner_weight in enumerate(W.T):
         c_high = 1.0
@@ -471,8 +497,12 @@ def Yuma3(
     B = decay * B_old + purchase
     B = torch.min(B, capacity_per_bond)  # Enforce capacity constraints
 
-    # === Validator reward ===
-    D = (B * I).sum(dim=1)
+    B_norm = B / (B.sum(dim=0, keepdim=True) + 1e-6)
+
+    # === Dividends Calculation ===
+    D = (B_norm * I).sum(dim=1)
+
+    # Normalize dividends
     D_normalized = D / (D.sum() + 1e-6)
 
     return {
@@ -490,7 +520,6 @@ def Yuma3(
         "validator_reward_normalized": D_normalized,
     }
 
-
 def Yuma4(
     W: torch.Tensor,
     S: torch.Tensor,
@@ -498,7 +527,25 @@ def Yuma4(
     config: YumaConfig = YumaConfig(),
 ) -> dict[str, torch.Tensor | None | float]:
     """
-    Original Yuma function with bonds and EMA calculation.
+    Implements the Yuma4 algorithm for managing validator bonds, weights, and incentives
+    in a decentralized system.
+
+    Yuma4 addresses the shortcomings of the Yuma3 algorithm, which does not resolve the
+    problem of stake dynamics differences between validators concerning their bonds. The case 9 scenario shows that
+    when a validator reaches its maximum bond cap and subsequently increases its stake relative to other validators,
+    its bonds will not scale proportionally with its stake. This results in reduced dividends compared to other validators.
+
+    Yuma4 adjusts the bond accumulation mechanism to ensure that each Validator/Server relationship has its own relative scale of bonds, capped at 1.
+    Stake is no longer considered when calculating bonds but is only used to calculate the final dividends.
+    This resolves the stake-bond dynamic issues caused by the Yuma3 implementation.
+
+    Key Features:
+    - Each Validator/Server relationship has its own relative scale of bonds, capped at 1, ensuring fairness among validators regardless of stake size.
+    - Bonds are no longer directly tied to stake for their accumulation. Instead, stake is only used to calculate final dividends, decoupling the stake-bond dynamics.
+    - Validators allocate bond purchases based on weights assigned to servers, reflecting their intended distribution of influence.
+    - Bonds are adjusted per epoch according to the `bond_alpha` parameter, which determines the maximum increment per epoch.
+    - A decay mechanism ensures that bonds for unsupported servers decrease over time.
+    - The `liquid_alpha` adjustment, when enabled, dynamically adapts bond accumulation based on the consensus range of server weights, providing a more responsive and adaptive allocation mechanism.
     """
 
     # === Weight ===
@@ -536,14 +583,14 @@ def Yuma4(
     R = (S.view(-1, 1) * W_clipped).sum(dim=0)
 
     # === Incentive ===
-    I = (R / R.sum()).nan_to_num(0)
+    I = (R / R.sum()).nan_to_num(0)  # noqa: E741
 
     # === Trusts ===
-    T = (R / P).nan_to_num(0)
-    T_v = W_clipped.sum(dim=1) / W.sum(dim=1)
+    T = (R / P).nan_to_num(0)  # noqa: F841
+    T_v = W_clipped.sum(dim=1) / W.sum(dim=1)  # noqa: F841
 
     # === Liquid Alpha Adjustment ===
-    a = b = torch.tensor(float('nan'))
+    a = b = torch.tensor(float("nan"))
     bond_alpha = config.bond_alpha
     if config.liquid_alpha:
         consensus_high = (
@@ -559,6 +606,8 @@ def Yuma4(
 
         if consensus_high == consensus_low:
             consensus_high = C.quantile(0.99)
+        if consensus_high == consensus_low:
+            consensus_high += 1e-6
 
         a = (
             math.log(1 / config.alpha_high - 1) - math.log(1 / config.alpha_low - 1)
@@ -586,7 +635,8 @@ def Yuma4(
     B = torch.clamp(B, max=1.0)
 
     # === Dividends Calculation ===
-    total_bonds_per_validator = (B * I).sum(dim=1)  # Sum over miners for each validator
+    B_norm = B / (B.sum(dim=0, keepdim=True) + 1e-6) # Normalized Bonds only for Dividends calculations purpose
+    total_bonds_per_validator = (B_norm * I).sum(dim=1)  # Sum over miners for each validator
     D = S * total_bonds_per_validator  # Element-wise multiplication
 
     # Normalize dividends

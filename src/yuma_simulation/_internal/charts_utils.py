@@ -1,5 +1,5 @@
 """
-This module provides utilities for calculating and visualizing simulation results. 
+This module provides utilities for calculating and visualizing simulation results.
 It includes functions for generating plots, calculating dividends, and preparing data for bonds and incentives.
 """
 
@@ -51,6 +51,7 @@ def _plot_dividends(
     dividends_per_validator: dict[str, list[float]],
     case: str,
     base_validator: str,
+    highlight_validator: str,
     to_base64: bool = False,
 ) -> str | None:
     """Generates a plot of dividends over epochs for a set of validators."""
@@ -81,6 +82,13 @@ def _plot_dividends(
         total_dividend = total_dividends[validator]
         percentage_diff = percentage_diff_vs_base[validator]
 
+        # Format total_dividend for small values
+        if abs(total_dividend) < 1e-6:
+            total_dividend_str = f"{total_dividend:.3e}"  # Scientific notation
+        else:
+            total_dividend_str = f"{total_dividend:.6f}"  # Regular notation
+
+        # Format percentage differences
         if percentage_diff > 0:
             percentage_str = f"(+{percentage_diff:.1f}%)"
         elif percentage_diff < 0:
@@ -88,7 +96,12 @@ def _plot_dividends(
         else:
             percentage_str = "(Base)"
 
-        label = f"{validator}: Total = {total_dividend:.6f} {percentage_str}"
+        if highlight_validator is not None:
+            label = None
+            if validator == highlight_validator:
+                label = f"{validator}: Total = {total_dividend_str} {percentage_str}"
+        else:
+            label = f"{validator}: Total = {total_dividend_str} {percentage_str}"
 
         ax_main.plot(
             x_shifted,
@@ -110,6 +123,12 @@ def _plot_dividends(
     ax_main.set_title(f"{case}")
     ax_main.grid(True)
     ax_main.legend()
+
+    # Dynamically switch y-axis to scientific notation if needed
+    from matplotlib.ticker import ScalarFormatter
+
+    ax_main.get_yaxis().set_major_formatter(ScalarFormatter(useMathText=True))
+    ax_main.ticklabel_format(style="sci", axis="y", scilimits=(-3, 3))
 
     if case.startswith("Case 4"):
         ax_main.set_ylim(0, 0.042)
@@ -345,7 +364,6 @@ def _plot_to_base64() -> str:
     buf.close()
     plt.close()
     return f'<img src="data:image/png;base64,{encoded_image}" style="max-width:1200px; height:auto;" draggable="false">'
-
 
 
 def _set_default_xticks(ax: Axes, num_epochs: int) -> None:

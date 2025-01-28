@@ -1,0 +1,61 @@
+{
+    "scenarios": [
+      {
+        "subnet_id": 9,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 243
+      },
+      {
+        "subnet_id": 15,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 0
+      },
+      {
+        "subnet_id": 21,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 0
+      },
+      {
+        "subnet_id": 31,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 49
+      },
+      {
+        "subnet_id": 42,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 3
+      },
+      {
+        "subnet_id": 48,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 0
+      },
+      {
+        "subnet_id": 56,
+        "bond_penalties": [0, 0.5, 0.99, 1.0],
+        "epochs": 40,
+        "tempo": 360,
+        "start_block_offset": 14400,
+        "shift_validator_id": 1
+      }
+    ]
+  }
+  

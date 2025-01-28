@@ -1,7 +1,11 @@
 from bs4 import BeautifulSoup
 
 from src.yuma_simulation._internal.cases import cases
-from src.yuma_simulation._internal.yumas import SimulationHyperparameters, YumaParams, YumaSimulationNames
+from src.yuma_simulation._internal.yumas import (
+    SimulationHyperparameters,
+    YumaParams,
+    YumaSimulationNames,
+)
 from src.yuma_simulation.v1.api import generate_chart_table
 
 
@@ -12,7 +16,7 @@ def test_generate_chart_table_with_charts():
         (yumas.YUMA, base_yuma_params),
     ]
     simulation_hyperparameters = SimulationHyperparameters(bond_penalty=0.99)
-    
+
     chart_table = generate_chart_table(cases, yuma_versions, simulation_hyperparameters)
     soup = BeautifulSoup(chart_table.data, "html.parser")
 
@@ -23,4 +27,6 @@ def test_generate_chart_table_with_charts():
     # Check if images are base64 encoded
     for img in imgs:
         src = img.get("src", "")
-        assert src.startswith("data:image/png;base64,"), "Image should be base64-encoded"
+        assert src.startswith("data:image/png;base64,"), (
+            "Image should be base64-encoded"
+        )

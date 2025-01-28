@@ -1,5 +1,6 @@
 from dataclasses import replace
 
+from yuma_simulation._internal.logger_setup import main_logger as logger
 from yuma_simulation._internal.cases import cases
 from yuma_simulation._internal.yumas import (
     SimulationHyperparameters,
@@ -18,8 +19,7 @@ def main():
         simulation_hyperparameters = SimulationHyperparameters(
             bond_penalty=bond_penalty,
         )
-        
-        # Make sure the output file name matches the bond_penalty parameter
+
         file_name = f"simulation_results_b{bond_penalty}.html"
 
         # Setting individual yuma simulations parameters
@@ -47,7 +47,7 @@ def main():
             (yumas.YUMA4_LIQUID, yuma4_liquid_params),
         ]
 
-        # Generate the chart table for the current bond_penalty
+        logger.info("Generating chart table...")
         chart_table = generate_chart_table(
             cases, yuma_versions, simulation_hyperparameters, draggable_table=True
         )
@@ -56,7 +56,8 @@ def main():
         with open(file_name, "w", encoding="utf-8") as f:
             f.write(chart_table.data)
 
-        print(f"HTML saved to {file_name}")
+        logger.info(f"HTML saved to {file_name}")
+
 
 if __name__ == "__main__":
     main()
